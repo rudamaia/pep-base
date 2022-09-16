@@ -1,0 +1,45 @@
+name: Deploy Drupal
+on:
+  push:
+    branches:
+      - main
+      - 'releases/**'
+  workflow_dispatch:
+jobs:
+  deploy:
+    name: Deploy to (>>__DOMAIN_NAME__<<)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.0
+      - name: Configure SSH
+        env:
+        # Values need to be inserted as secrets/env variables.
+          SSH_KEY: ${{ secrets.PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.TARGET_HOST }}
+          SSH_USER: ${{ secrets.TARGET_USER }}
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          echo "$SSH_KEY" > ~/.ssh/staging.key
+          chmod 600 ~/.ssh/staging.key
+          cat >>~/.ssh/config <<END
+            Host host_name
+              HostName $SSH_HOST
+              User $SSH_USER
+              IdentityFile ~/.ssh/staging.key
+              StrictHostKeyChecking no
+          END
+      - name: Set Up Deployer
+        run: curl -LO https://deployer.org/deployer.phar && sudo mv deployer.phar /bin/dep && sudo chmod +x /bin/dep
+      - name: Deploy Drupal
+        uses: deployphp/action@master
+        with:
+          private-key: ${{ secrets.PRIVATE_KEY }}
+          known-hosts: ${{ secrets.KNOWN_HOSTS }}
+          deployer-version: "7.0.0"
+          dep: deploy
